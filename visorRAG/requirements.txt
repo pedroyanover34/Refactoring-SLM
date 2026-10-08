@@ -1,0 +1,4 @@
+chromadb
+umap-learn
+plotly
+pandas

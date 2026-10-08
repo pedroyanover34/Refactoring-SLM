@@ -1,0 +1,190 @@
+en esta etapa me voy a enfocar en mejorar el prompt y la arquitectura de la herramienta para intentar mejorar
+el analisis del proyecto.
+Una de las cosas que voy a hacer seguramente es jugar con la dureza del filtro de smells, pero siento que la solucion
+va a estar en consultar al modelo de forma mas inteligente, bloque por bloque, patron por patron y limpiando contexto en cada uno.
+ademas, no darle bloques aislados, sino un conjunto de nodos altamente relacionados entre si...
+al resultado de cada patron registrarlo, limpiar contexto y analizar el siguiente.
+
+------
+system prompt:
+Analiza la carpeta /Users/pedro/Desktop/express usando analyze_project_for_patterns y evalúa los nodos devueltos. No vuelvas a invocar la herramienta.
+-------
+
+acote el alcance: solo state y strategy
+identifica en promedio correctamente 7 de 9 casos, de forma consistente (responde masomenos lo mismo cada vez).
+
+okey. me di cuenta que al agregar el filtro intermedio estoy limitando el rango de accion del modelo, 
+lo cual me parece bien: en lugar de darle la libertad de utilizar herramientas de serena, 
+llama la tool del script y el script filtra y le pasa (sin usar serena).
+De aca saco una conclusion bastante rica: es mejor darle al modelo todo procesado antes de que busque por su cuenta el codigo.
+
+el código no utiliza Serena 
+Servidor MCP propio: Define su propio servidor MCP estándar usando @modelcontextprotocol/sdk bajo el nombre design-pattern-detector.  
+Parseo AST nativo: Realiza el análisis sintático estático directamente en JavaScript utilizando las librerías @babel/parser y @babel/traverse.  Lógica interna: Escanea los archivos, construye el árbol AST, filtra las estructuras sospechosas de patron y construye el prompt de auditoría internamente dentro de mcp-bridge.js. 
+
+-----------
+
+es una estrategia muy sólida, pragmática y profesional, aunque no es conceptualmente "innovadora" en la industria del AI Engineering.
+Es una arquitectura bien pensada que resuelve de raíz varios de los problemas más destructivos en aplicaciones con LLMs.
+Por qué tu enfoque es muy bueno y acertado
+Aislamiento de contexto (Context Flushing): Limpiar el contexto entre cada patrón evita la degradación de atención y la contaminación cruzada. 
+Los LLMs sufren de distorsión cuando el historial de chat se vuelve largo (lost in the middle). Restablecer el estado en cada paso garantiza que el análisis del patrón $N$ sea tan preciso como el del patrón 
+1.Especialización y modularidad: En lugar de pedirle a un solo prompt general que resuelva múltiples problemas complejos, acotas la tarea a un dominio hiperespecífico. Esto reduce dramáticamente las alucinaciones y mejora la consistencia del output.
+Procesamiento estructurado (Pipeline / Map-Reduce): Lo que estás planteando equivale a un patrón de diseño Map-Reduce / Batch Processing adaptado a LLMs: la fase Map procesa cada patrón de forma independiente y la fase Reduce concatena o consolida los hallazgos en un reporte final.
+Por qué no es "innovador" (Sinceridad brutal)Esta estructura es esencialmente el estándar de la industria para sistemas de agentes y flujos de trabajo orquestados:Frameworks existentes: Herramientas como LangGraph, CrewAI, AutoGen o LlamaIndex Workflow basan su arquitectura exactamente en este principio: ciclos cerrados, limpieza o paso de estado mínimo entre nodos y consolidación de resultados.
+Procesamiento por lotes clásico: Es la adaptación directa de pipelines de datos tradicionales aplicada a modelos de lenguaje.
+Riesgos y puntos ciegos a considerarPérdida de correlación global: Si el patrón B depende de un hallazgo previo del patrón A, limpiar el contexto por completo impedirá que el modelo conecte los puntos.
+Solución: En lugar de limpiar a cero, mantén un estado global sintético (un resumen muy breve de los hallazgos anteriores) que se le inyecte como entrada secundaria al analizar el siguiente patrón.Dependencia del esquema del reporte: Para que el reporte final acumulado mantenga coherencia, la salida de cada ciclo debe seguir un formato estricto (idealmente JSON o Markdown estructurado mediante Structured Outputs).
+
+----------
+
+mejore el prompt del mcp payload para el observer y ahora acierta el 100% de las oportunidades, pero tengo miedo que haya a un prompt que sirva
+especificamente para el codigo que estoy analizando. Cuando termine con todos los patrones los voy a ir probando en otros poryectos.
+
+sujerencia:
+Temperature: 0.0 a 0.1 (Evita la "creatividad" al calificar patrones).
+Top_P: 0.9
+
+gran mejora al aplicar: 
+Forzado sintáctico de CoT en el prompt: Forzar a seguir pasos concretos y obtener una solucion solo al final.
+Definición de opciones acotadas: Acotar las opciones del modelo lo obligan a categorizar explícitamente entre guardas/formateos y verdaderos condicionales complejos.  
+
+---------
+
+Yo lo que estoy haciendo es una cadena de ejecución porque estoy haciendo que el modelo llame una tool, esa tool 
+le devuelve un resultado el modelo analiza ese resultado y me da una respuesta
+La diferencia con langchain es que utilizando langChain el modelo tendría autonomía en el uso de Tools 
+lo qué pasa es que en este caso es mejor acotar el funcionamiento del modelo y hacerlo más determinista posible 
+para reducir el gasto de tokens y poder darle una orden más precisa según opino.
+---------
+
+
+recomendaciones para investigar: 
+
+1. Análisis de Flujo de Datos y Grafo de Dependencias (Sema)
+El análisis estático sintáctico (AST) solo ve la estructura local. Para detectar patrones como Factory Method, Strategy u Observer con mayor precisión, necesitas entender el flujo de control y tipos.
+
+Control Flow Graph (CFG) y Data Flow Analysis (DFA): Librerías de análisis estático avanzado como Tree-sitter (más rápido y semántico para múltiples lenguajes que Babel) o CodeQL permiten construir grafos de llamadas (Call Graphs). Esto ayuda a verificar si un objeto devuelto por un if/else implementa una interfaz común antes de pasárselo al LLM.
+
+LSP (Language Server Protocol) Integration: Integrar o consultar un servidor de lenguaje (ej. typescript-language-server) te permite resolver tipos dinámicamente y entender si las clases concretas derivan de una misma clase base/interfaz sin tener que hacer conjeturas con el LLM.
+
+2. Optimización de la Context Window y Pre-filtrado
+Embedding & Vector Search (RAG Estratégico): En proyectos grandes, analizar archivo por archivo genera cuellos de botella. Podrías indexar la estructura del proyecto en una base de datos vectorial (ej. ChromaDB o FAISS) utilizando embeddings de código (Code Embeddings como text-embedding-3-small o modelos locales de Qwen/CodeLlama). Esto te permite consultar qué clases están fuertemente acopladas antes de extraer los snippets.
+
+Métricas de Complejidad Ciclomática / Acoplamiento: Usa herramientas como eslint-plugin-sonarjs o bibliotecas de métricas de software para calcular la complejidad ciclomática y el CBO (Coupling Between Objects). Solo las funciones con alta complejidad y alto acoplamiento deberían enviarse al LLM para evaluar refactorización a Factory Method o Strategy.
+
+3. Técnicas de Inferencia y Prompt Engineering
+Structured Outputs (JSON Schema / Pydantic / Zod): En lugar de pedir al LLM que formatee texto plano con etiquetas (- NODO_ID:, - PASO_1_...), utiliza la funcionalidad de Structured Outputs (JSON Schema / Zod). Esto garantiza que el LLM devuelva un objeto estructurado válido, eliminando errores de parsing y facilitando la agregación final en un reporte.
+
+Modelos Small/Specialized para la Inferencia: Un LLM grande (como Claude 3.5 Sonnet o GPT-4o) puede resultar costoso para analizar decenas de nodos. Puedes utilizar un enfoque en dos etapas:
+
+Filtro rápido (SLM Local): Usa un modelo pequeño especializado en código (ej. qwen2.5-coder:7b o deepseek-coder corriendo localmente en Ollama/LM Studio) para evaluar rápidamente si un nodo es un verdadero positivo o un falso positivo.
+
+Auditoría profunda (LLM Avanzado): Pasa solo las oportunidades confirmadas al modelo grande para redactar la sugerencia de refactorización detallada.
+
+4. Orquestación y Evaluación del Sistema
+Estrategia Map-Reduce en la Orquestación: Cuando pases a LangGraph o LangChain:
+
+Map Stage: Aplica la herramienta MCP de forma paralela en subcarpetas o módulos del proyecto, procesando cada nodo candidato de manera independiente.
+
+Reduce Stage: Combina las evaluaciones confirmadas en un nodo final que analice el impacto global en la arquitectura y genere un único informe de refactorización.
+
+Evaluación Automatizada (Datasets de Prueba): Para medir la efectividad de tus filtros AST y prompts de auditoría, puedes evaluar tu herramienta frente a repositorios de código abiertos que documenten refactorizaciones reales (como el dataset de RefactoringMiner), calculando así métricas de Precision (cuántos candidatos confirmados por el LLM eran realmente buenas oportunidades) y Recall (cuántas oportunidades reales detectó tu filtro AST).
+
+-----------
+
+Una de las validaciones que podria hacer un segundo modelo usando langgraph es si el modelo uso la tool correctamente y el formato de la salida es correcto.
+
+---------
+
+hice varios ajustes en los mcp prompts para que los filtros no sean tan estrictos y sean mas universales. mejoro bastante.
+tambien separe los filtros de state y strategy.
+mejoro mucho el analisis con temeratura 0.1 y Top_P: 0.9.
+
+-------
+
+se me ocurre otro enfoque o diseño: un flujo completamente automatico de agentes especializados... unos en filtrar archivos, otros en filtrar
+bloques de codigo. el filtrado de bloques de codigo podria ser por acoplamiento y relacion. 
+Deberia usar un RAG? 
+Control Flow Graph (CFG) y Data Flow Analysis (DFA)????
+
+---------
+
+
+Mira hay un problema que es que el Rag realmente no me ayuda a encontrar más fácilmente bloques de código en los que es posible aplicar un patrón sino que simplemente hace más eficiente la lectura del código pero ahora el problema que es cómo busco ese código. A lo que me refiero es que ahora tengo que resolver la forma en la que se buscan bloques de código relacionados a un patrón en particular. Lo que se me ocurrió es que el modelo genere un listado de nombres de funciones o nombres de variables que podrían ser utilizados en código que podría ser reemplazado por un patrón y en base de su buscar los bloques código en el Rag.
+
+Antes que nada voy a probar qué tal funcione el modelo si le paso todos los nudos recuperados y después voy a ver de forma de filtrar esos nudos para cada patrón.
+
+Algo que quizás es una buena noticia es que no es necesario que encuentre el nombre exacto de la variable sino que con que sea semánticamente sea arcano lo voy a encontrar por ejemplo que el modelo genere observador para buscar eso va a estar cerca de Listener que quizás es el nombre real de la variable en el código lo cual simplifica un poco.
+
+Y a su vez pienso que pensando en el flujo del Lang Chain podría ser un modelo que genera este listado otro modelo que recibe los nudos realiza un primer filtrado se lo pasa a otro modelo que analiza si realmente hay un patrón entremedio de cada uno de estos un modelo que valide la salida que estén en formato correcto que se haya ejecutado todo correctamente etc.
+Y obviamente la arquitectura está general de ir registrando el análisis patrón por patrona obtener un informe completo.
+
+-------------
+
+
+
+
+Cuando se llama a indexGraphsInChroma en src/ragChroma.js, se guardan 3 componentes por cada función/subgrafo procesado:   JavaScriptawait collection.add({
+  ids: ids,                 // Identificador único (ej: "src/serializeGraph.js::serializeGraphForEmbedding")
+  documents: documents,     // 📝 El texto plano generativo en lenguaje natural (usado para calcular el embedding)
+  metadatas: metadatas      // 📦 Objeto JSON con la información estructurada del nodo/grafo
+});
+
+
+
+
+
+
+npx chroma run
+node src/ragChroma.js             
+node ./src/ragChroma.js /Users/pedro/Desktop/express
+
+
+
+
+LMStudio -> mcpServer -> ragChroma -> serializeGraph -> patternFilters
+
+
+
+
+
+
+
+
+
+
+
+"Analiza el proyecto buscando dónde podríamos aplicar el patrón [patron]."
+
+
+
+Eres un Agente Arquitecto de Software Experto en Refactorización y Análisis Estático. Tu objetivo es encontrar oportunidades para aplicar un **Patrón de Diseño específico** que el usuario te solicitará, utilizando una combinación secuencial de herramientas vectoriales (RAG) y análisis de código fuente.
+
+REGLAS DE BÚSQUEDA Y TRAZABILIDAD OBLIGATORIAS:
+
+1. **FASE 1: BÚSQUEDA VECTORIAL EN EL RAG (OBLIGATORIA PRIMERO)**
+   - Ante cualquier patrón que pida el usuario, NO busques manualmente en los archivos. 
+   - Debes usar la herramienta `search_portfolio_graphs` obligatoriamente como tu primer paso.
+   - Para consultar el RAG, utiliza únicamente la frase literal de la categoría correspondiente al patrón solicitado:
+     - Si el patrón es de tipo Creacional (ej. crea/instancia objetos): Usa la query `"instancia o crea nuevos objetos de las clases"`
+     - Si el patrón es de tipo Comportamiento (ej. delega algoritmos/métodos): Usa la query `"delega la lógica llamando a métodos externos"`
+     - Si el patrón es de tipo Estructural/Estado (ej. muta o evalúa estados): Usa la query `"modifica, muta o actualiza el estado de las variables"`
+
+2. **FASE 2: RASTREO DE FLUJO CON SERENA (SEGUNDO PASO)**
+   - Una vez que obtengas los resultados del RAG y tengas identificado el archivo (`file`) y la función (`symbol`) que presentan un condicional complejo:
+     - Utiliza las herramientas de Serena (`search_for_pattern`, `read_file`, etc.) para ubicar el bloque de código original y trazar el flujo de comunicación.
+     - Analiza qué métodos externos o clases se invocan dentro de las ramas del condicional para verificar si existe un acoplamiento que deba resolverse mediante el patrón solicitado.
+
+FLUJO DE TRABAJO DEL AGENTE:
+- **Paso 1:** Indexa el proyecto si aún no se ha hecho (`index_portfolio`).
+- **Paso 2:** Ejecuta inmediatamente la **Fase 1** (Búsqueda en el RAG con la frase literal estricta según el patrón pedido).
+- **Paso 3:** Toma el nodo más relevante del JSON devuelto y ejecuta la **Fase 2** (Usa Serena para leer el archivo fuente y rastrear el flujo de llamadas de las variables/métodos involucrados).
+- **Paso 4:** Genera el reporte final de arquitectura indicando el hallazgo, el análisis de flujo realizado con Serena y la propuesta de refactorización.
+
+
+----------
+
+Probar: con el filtro, crear diractamente un clon del proyecto filtrado, o buscar alguna forma de uqe el modelo no tenga ningun acceso al codigo filtrado.
+
+creo que ya es nacesario que empieze a usar langchain

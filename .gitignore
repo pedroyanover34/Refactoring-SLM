@@ -1,0 +1,50 @@
+# Dependencies and virtual environments
+node_modules/
+.venv/
+venv/
+env/
+
+# Python artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Generated data and local databases
+raw_refactoring_pairs/
+RefactoringMiner/
+data/raw/
+data/processed/
+chroma/
+*.sqlite3
+
+# Tool caches
+.serena/cache/
+.cache/
+
+# Build output and logs
+build/
+dist/
+coverage/
+*.log
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo

@@ -1,0 +1,32 @@
+{
+  "name": "design-pattern-detector",
+  "version": "1.0.0",
+  "description": "Programa de análisis estático que identifica código **sin** patrón de diseño aplicado donde convendría aplicar uno, usando una capa de reglas AST + recuperación semántica (RAG) + razonamiento LLM. Nunca aplica cambios automáticamente: solo sugiere.",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs",
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "node --test",
+    "mcp:rag": "node src/mcpServer.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/pedroyanover34/design-pattern-detector.git"
+  },
+  "keywords": [],
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/pedroyanover34/design-pattern-detector/issues"
+  },
+  "homepage": "https://github.com/pedroyanover34/design-pattern-detector#readme",
+  "dependencies": {
+    "@babel/parser": "^8.0.4",
+    "@babel/traverse": "^8.0.4",
+    "@chroma-core/default-embed": "^0.1.9",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "chromadb": "^3.5.0",
+    "diff": "^5.2.0"
+  }
+}

@@ -1,0 +1,19 @@
+# --- Fase 0/1: Serena (AST vía LSP) ---
+# Serena se instala como servidor MCP (repo oraios/serena), no vive en este requirements.txt.
+# Ver docs/fase0_checklist.md para instrucciones de instalación (uv/uvx).
+
+# --- Fase 3: embeddings + base vectorial ---
+chromadb>=0.5
+sentence-transformers>=3.0   # para correr CodeBERT/GraphCodeBERT como embedding model
+
+# --- Fase 4: LLM local ---
+mlx-lm>=0.18       # runtime MLX (Apple Silicon) para Qwen2.5-Coder
+# lmstudio se maneja como app aparte, no como paquete pip
+
+# --- utilidades generales ---
+pandas>=2.2
+pyyaml>=6.0
+tqdm>=4.66
+
+# --- testing ---
+pytest>=8.0

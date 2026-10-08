@@ -1,0 +1,1 @@
+python3 visualizador_3d.py --path "/Users/pedro/Desktop/design-pattern-detector-v2/chroma" --collection "code_dependency_graphs"
